@@ -26,11 +26,15 @@ jobs:
           const NICK = "maciekqpro";
 
           const post = async (url, body, headers = {}) => {
-            const r = await fetch(url, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...headers },
-              body: JSON.stringify(body),
-            });
+            const go = (extra = {}) =>
+              fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...headers, ...extra },
+                body: JSON.stringify(body),
+              });
+            let r = await go();
+            const csrf = r.headers.get("x-csrf-token");
+            if (r.status === 403 && csrf) r = await go({ "x-csrf-token": csrf });
             if (!r.ok) throw new Error(url + " -> " + r.status + " " + (await r.text()));
             return r.json();
           };
@@ -52,6 +56,7 @@ jobs:
           // 0 = offline, 1 = online, 2 = w grze, 3 = w Studio
           const type = p.userPresences?.[0]?.userPresenceType ?? 0;
           const active = type > 0;
+          console.log("presence type:", type, "active:", active);
 
           let old = {};
           try { old = JSON.parse(fs.readFileSync("status.json", "utf8")); } catch {}
