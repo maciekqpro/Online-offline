@@ -53,10 +53,11 @@ jobs:
             cookie ? { Cookie: ".ROBLOSECURITY=" + cookie } : {}
           );
 
-          // 0 = offline, 1 = online, 2 = w grze, 3 = w Studio
-          const type = p.userPresences?.[0]?.userPresenceType ?? 0;
-          const active = type > 0;
-          console.log("presence type:", type, "active:", active);
+          // 0 = offline, 1 = online (np. menu), 2 = w grze, 3 = w Studio, 4 = niewidoczny
+          const pr = p.userPresences?.[0] ?? {};
+          const type = pr.userPresenceType ?? 0;
+          const active = type === 2 || type === 3;
+          console.log("presence type:", type, "| lokalizacja:", pr.lastLocation, "| aktywny:", active);
 
           let old = {};
           try { old = JSON.parse(fs.readFileSync("status.json", "utf8")); } catch {}
