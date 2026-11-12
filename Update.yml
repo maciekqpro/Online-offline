@@ -1,0 +1,68 @@
+name: update-status
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: roblox-status
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sprawdź status gracza
+        env:
+          ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
+        run: |
+          node --input-type=module - <<'EOF'
+          import fs from "node:fs";
+          const NICK = "maciekqpro";
+
+          const post = async (url, body, headers = {}) => {
+            const r = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...headers },
+              body: JSON.stringify(body),
+            });
+            if (!r.ok) throw new Error(url + " -> " + r.status + " " + (await r.text()));
+            return r.json();
+          };
+
+          const u = await post("https://users.roblox.com/v1/usernames/users", {
+            usernames: [NICK],
+            excludeBannedUsers: false,
+          });
+          const id = u.data?.[0]?.id;
+          if (!id) throw new Error("Nie znaleziono gracza " + NICK);
+
+          const cookie = process.env.ROBLOSECURITY;
+          const p = await post(
+            "https://presence.roblox.com/v1/presence/users",
+            { userIds: [id] },
+            cookie ? { Cookie: ".ROBLOSECURITY=" + cookie } : {}
+          );
+
+          // 0 = offline, 1 = online, 2 = w grze, 3 = w Studio
+          const type = p.userPresences?.[0]?.userPresenceType ?? 0;
+          const active = type > 0;
+
+          let old = {};
+          try { old = JSON.parse(fs.readFileSync("status.json", "utf8")); } catch {}
+          const since = active ? (old.active && old.since ? old.since : new Date().toISOString()) : null;
+
+          fs.writeFileSync("status.json", JSON.stringify({ nick: NICK, active, since }, null, 2) + "\n");
+          EOF
+
+      - name: Zapisz zmiany
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status.json
+          git diff --cached --quiet || (git commit -m "status" && git push)
